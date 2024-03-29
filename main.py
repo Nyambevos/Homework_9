@@ -1,10 +1,11 @@
+import os
 import re
 import json
 from pathlib import Path
 
+import src.connect
 from src.parse import parse_data, URL
 from src.seeds import add_author, add_quote
-import src.connect
 from src.models import Authors, Quotes
 
 AUTHORS = 'json/authors.json'
@@ -49,6 +50,9 @@ def user_interface():
 
 def parse_to_json():
     quotes, authors = parse_data(URL)
+
+    if not Path('json').exists():
+        os.mkdir('json')
 
     with open('json/quotes.json', 'w') as file:
         json.dump(quotes, fp=file)
