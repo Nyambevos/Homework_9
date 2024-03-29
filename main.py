@@ -1,74 +1,80 @@
+import re
 import json
+from pathlib import Path
 
-import requests
-from bs4 import BeautifulSoup
+from src.parse import parse_data, URL
+from src.seeds import add_author, add_quote
+import src.connect
+from src.models import Authors, Quotes
 
-URL = "https://quotes.toscrape.com"
+AUTHORS = 'json/authors.json'
+QUOTES = 'json/quotes.json'
 
-def parse_data_author(url: str):
-    html_doc = requests.get(url)
+def user_interface():
+    while True:
+        input_cmd = input("Enter the command: ")
+        
+        if input_cmd.lower() == "exit":
+            break
 
-    if html_doc.status_code == 200:
-        soup = BeautifulSoup(html_doc.content, 'html.parser')
-        fullname = soup.find('h3', class_='author-title')
-        born_date = soup.find('span', class_='author-born-date')
-        born_location = soup.find('span', class_='author-born-location')
-        description = soup.find('div', class_='author-description')
+        try:
+            cmd, args = re.split(":", input_cmd)
+        except Exception as e:
+            print("I don't understand you")
+            continue
 
-        author = {
-            "fullname": fullname.text,
-            "born_date": born_date.text,
-            "born_location": born_location.text,
-            "description": description.text
-        }
-
-        return author
-
-
-def parse_data(url: str):
-    # /page/10/
-    authors = []
-    quotes = []
-
-    html_doc = requests.get(url)
-
-    if html_doc.status_code == 200:
-        print(f"[*] Parse url: {url}")
-        soup = BeautifulSoup(html_doc.content, 'html.parser')
-        quotes_ = soup.find_all('div', class_='quote')
-        for quote_ in quotes_:
-            author = quote_.find('small', class_='author')
-            quote = quote_.find('span', class_='text')
-            tags = quote_.find_all('a', class_='tag')
-
-            quotes.append({
-                'author': author.text,
-                'quote': quote.text,
-                'tags': [tag.text for tag in tags]
-            })
-
-            link_author = quote_.find('a')
-            url_author = f"{URL}{link_author['href']}"
+        if cmd.lower() == "name":
+            try:
+                author = Authors.objects.get(fullname = args)
+            except Exception as e:
+                print(e)
+                continue
             
-            author_ = parse_data_author(url_author)
-            authors.append(author_)
+            quotes = Quotes.objects(author = author.id)
+            for quote in quotes:
+                print(quote.quote)
 
-        next_buttom = soup.find('li', class_='next')
+        elif cmd.lower() == "tag":
+            quotes = Quotes.objects(tags__name=args)
+            for quote in quotes:
+                print(quote.quote)
+        elif cmd.lower() == "tags":
+            tags = re.split(",", args)
+    
+            quotes = Quotes.objects(tags__name__in=tags)
+            for quote in quotes:
+                print(quote.quote)
+        else:
+            print("I don't understand you")
 
-        if next_buttom:
-            link_next_page = next_buttom.find('a')['href']
-            qt, at = parse_data(f"{URL}{link_next_page}")
-            quotes.extend(qt)
-            authors.extend(at)
-
-    return quotes, authors
-
-
-if __name__ == "__main__":
+def parse_to_json():
     quotes, authors = parse_data(URL)
 
     with open('json/quotes.json', 'w') as file:
         json.dump(quotes, fp=file)
-
     with open('json/authors.json', 'w') as file:
-        json.dump(authors, fp=file)
+        json.dump([*authors.values()], fp=file)
+
+def dump_json_to_db():
+    with open(AUTHORS) as file:
+        authors = json.load(file)
+    for author in authors:
+        add_author(author)
+
+    with open(QUOTES) as file:
+        qoutes = json.load(file)
+    for qoute in qoutes:
+        add_quote(qoute)
+    print("[*]Upload data to database")
+
+def main():
+    if (
+        not Path(AUTHORS).exists() or
+        not Path(QUOTES).exists()):
+        parse_to_json()
+        dump_json_to_db()
+
+    user_interface()
+
+if __name__ == "__main__":
+    main()

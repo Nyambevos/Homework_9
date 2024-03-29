@@ -10,6 +10,7 @@ python = "^3.11"
 beautifulsoup4 = "^4.12.3"
 requests = "^2.31.0"
 sqlalchemy = "^2.0.29"
+mongoengine = "^0.28.2"
 
 
 [build-system]
